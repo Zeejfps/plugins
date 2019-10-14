@@ -10,16 +10,24 @@ import static com.google.android.exoplayer2.Player.REPEAT_MODE_OFF;
 import android.content.Context;
 import android.net.Uri;
 import android.os.Build;
+import android.util.Log;
 import android.util.LongSparseArray;
 import android.view.Surface;
 import com.google.android.exoplayer2.C;
+import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayerFactory;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.Player.EventListener;
+import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.audio.AudioAttributes;
+import com.google.android.exoplayer2.drm.DefaultDrmSessionManager;
+import com.google.android.exoplayer2.drm.FrameworkMediaCrypto;
+import com.google.android.exoplayer2.drm.FrameworkMediaDrm;
+import com.google.android.exoplayer2.drm.HttpMediaDrmCallback;
+import com.google.android.exoplayer2.drm.UnsupportedDrmException;
 import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory;
 import com.google.android.exoplayer2.source.ExtractorMediaSource;
 import com.google.android.exoplayer2.source.MediaSource;
@@ -34,6 +42,7 @@ import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
+import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.util.Util;
 import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodCall;
@@ -49,6 +58,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public class VideoPlayerPlugin implements MethodCallHandler {
 
@@ -70,18 +80,38 @@ public class VideoPlayerPlugin implements MethodCallHandler {
 
     private boolean isInitialized = false;
 
+    private Context context;
+
     VideoPlayer(
         Context context,
         EventChannel eventChannel,
         TextureRegistry.SurfaceTextureEntry textureEntry,
         String dataSource,
         Result result,
+        String licenseUrl,
         String formatHint) {
+
+      this.context = context;
       this.eventChannel = eventChannel;
       this.textureEntry = textureEntry;
 
       TrackSelector trackSelector = new DefaultTrackSelector();
-      exoPlayer = ExoPlayerFactory.newSimpleInstance(context, trackSelector);
+
+      DefaultDrmSessionManager<FrameworkMediaCrypto> drmSessionManager = null;
+      if (licenseUrl != null) {
+        String drmSchemeExtra =  "widevine";
+        UUID drmSchemeUuid = Util.getDrmUuid(drmSchemeExtra);
+        if (drmSchemeUuid == null) {
+          Log.e("DRMTEST", "Unsupported DRM");
+        } else {
+          drmSessionManager =
+                  buildDrmSessionManagerV18(drmSchemeUuid, licenseUrl);
+        }
+      }
+
+      RenderersFactory renderersFactory = new DefaultRenderersFactory(context)
+              .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF);
+      exoPlayer = ExoPlayerFactory.newSimpleInstance(context, renderersFactory, trackSelector, drmSessionManager);
 
       Uri uri = Uri.parse(dataSource);
 
@@ -102,6 +132,21 @@ public class VideoPlayerPlugin implements MethodCallHandler {
       exoPlayer.prepare(mediaSource);
 
       setupVideoPlayer(eventChannel, textureEntry, result);
+    }
+
+    private DefaultDrmSessionManager<FrameworkMediaCrypto> buildDrmSessionManagerV18(UUID uuid, String licenseUrl){
+      HttpDataSource.Factory licenseDataSourceFactory =
+              new DefaultHttpDataSourceFactory(Util.getUserAgent(context, "ExoPlayerDemo"));
+      HttpMediaDrmCallback drmCallback =
+              new HttpMediaDrmCallback(licenseUrl, licenseDataSourceFactory);
+      FrameworkMediaDrm mediaDrm = null;
+      try {
+        mediaDrm = FrameworkMediaDrm.newInstance(uuid);
+      } catch (UnsupportedDrmException e) {
+        e.printStackTrace();
+        return null;
+      }
+      return new DefaultDrmSessionManager<>(uuid, mediaDrm, drmCallback, null, false);
     }
 
     private static boolean isHTTP(Uri uri) {
@@ -371,6 +416,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                     handle,
                     "asset:///" + assetLookupKey,
                     result,
+                    null,
                     null);
             videoPlayers.put(handle.id(), player);
           } else {
@@ -381,6 +427,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                     handle,
                     call.argument("uri"),
                     result,
+                    call.argument("licenseUrl"),
                     call.argument("formatHint"));
             videoPlayers.put(handle.id(), player);
           }

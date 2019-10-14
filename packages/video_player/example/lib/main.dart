@@ -225,7 +225,7 @@ abstract class _PlayerLifeCycleState extends State<PlayerLifeCycle> {
 class _NetworkPlayerLifeCycleState extends _PlayerLifeCycleState {
   @override
   VideoPlayerController createVideoPlayerController() {
-    return VideoPlayerController.network(widget.dataSource);
+    return VideoPlayerController.networkWithDrm(widget.dataSource, "");
   }
 }
 
@@ -392,7 +392,7 @@ void main() {
                     Container(
                       padding: const EdgeInsets.all(20),
                       child: NetworkPlayerLifeCycle(
-                        'http://184.72.239.149/vod/smil:BigBuckBunny.smil/playlist.m3u8',
+                        'https://zavideoplatform.streaming.mediaservices.windows.net///7dbdee87-4fb8-4c29-8c5e-3ae121815b12/01%20-%20Introduction.ism/manifest(format=mpd-time-csf,encryption=cenc).mpd',
                         (BuildContext context,
                                 VideoPlayerController controller) =>
                             AspectRatioVideo(controller),

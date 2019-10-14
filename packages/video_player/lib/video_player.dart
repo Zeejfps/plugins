@@ -130,7 +130,7 @@ class VideoPlayerValue {
   }
 }
 
-enum DataSourceType { asset, network, file }
+enum DataSourceType { asset, network, file , networkWithDrm}
 
 /// Controls a platform video player, and provides updates when the state is
 /// changing.
@@ -151,6 +151,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   VideoPlayerController.asset(this.dataSource, {this.package})
       : dataSourceType = DataSourceType.asset,
         formatHint = null,
+        licenseUrl = null,
         super(VideoPlayerValue(duration: null));
 
   /// Constructs a [VideoPlayerController] playing a video from obtained from
@@ -163,6 +164,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   VideoPlayerController.network(this.dataSource, {this.formatHint})
       : dataSourceType = DataSourceType.network,
         package = null,
+        licenseUrl = null,
         super(VideoPlayerValue(duration: null));
 
   /// Constructs a [VideoPlayerController] playing a video from a file.
@@ -174,10 +176,22 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         dataSourceType = DataSourceType.file,
         package = null,
         formatHint = null,
+        licenseUrl = null,
+        super(VideoPlayerValue(duration: null));
+
+  /// Constructs a [VideoPlayerController] playing a video obtained from the
+  /// the network and is protedted by drm.
+  ///
+  /// The URI for the video is given by the [dataSource] argument and must not be
+  ///
+  VideoPlayerController.networkWithDrm(this.dataSource, this.licenseUrl, {this.formatHint})
+      : dataSourceType = DataSourceType.networkWithDrm,
+        package = null,
         super(VideoPlayerValue(duration: null));
 
   int _textureId;
   final String dataSource;
+  final String licenseUrl;
   final VideoFormat formatHint;
 
   /// Describes the type of data source this [VideoPlayerController]
@@ -214,6 +228,13 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         break;
       case DataSourceType.file:
         dataSourceDescription = <String, dynamic>{'uri': dataSource};
+        break;
+      case DataSourceType.networkWithDrm:
+        dataSourceDescription = <String, dynamic>{
+          'uri': dataSource,
+          'licensUrl': licenseUrl,
+          'formatHint': _videoFormatStringMap[formatHint]
+        };
         break;
     }
     final Map<String, dynamic> response =
